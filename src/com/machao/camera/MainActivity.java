@@ -1,60 +1,120 @@
 package com.machao.camera;
 
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+
+import com.machao.camera.R.id;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.hardware.Camera;
+import android.hardware.Camera.AutoFocusCallback;
+import android.hardware.Camera.PictureCallback;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.Toast;
 
 public class MainActivity extends Activity {
+	protected static final String TAG = null;
 	private Button bt_camera;
 	private Button bt_video;
+	private Camera mCamera;
+	private CameraPreview mPreview;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		setContentView(R.layout.activity_main);
+		setContentView(R.layout.activity_camera_api);
 		
-		bt_camera = (Button)findViewById(R.id.photo);
-		bt_video = (Button)findViewById(R.id.video);
+        // Create an instance of Camera
+        mCamera = getCameraInstance();
 
+        // Create our Preview view and set it as the content of our activity.
+        mPreview = new CameraPreview(this, mCamera);
+        FrameLayout preview = (FrameLayout) findViewById(R.id.camera_preview);
+        preview.addView(mPreview);
+	
+    	// Add a listener to the Capture button
+    	Button captureButton = (Button) findViewById(id.button_capture);
+    	captureButton.setOnClickListener(
+    	    new View.OnClickListener() {
+    	        @Override
+    	        public void onClick(View v) {
+    	        	mCamera.autoFocus(new AutoFocusCallback() {
+						
+						@Override
+						public void onAutoFocus(boolean arg0, Camera arg1) {
+							// TODO Auto-generated method stub
+							// get an image from the camera
+		    	            mCamera.takePicture(null, null, mPicture);
+						}
+					});
+    	            
+    	        }
+    	    }
+    	);
 	}
 	
-	public void onPhotoClick(View view){
-		Intent intent = new Intent();
-		intent.setAction("android.media.action.IMAGE_CAPTURE");
-		intent.addCategory("android.intent.category.DEFAULT");
-		File file = new File("/sdcard/0000000image.jpg");
-		Uri uri = Uri.fromFile(file);
-		intent.putExtra(MediaStore.EXTRA_OUTPUT, uri);
-		startActivity(intent);
+	//1. 检查是否存在照相机
+	private boolean checkCameraHardware(Context context){
+	    if (context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA)){
+	        // this device has a camera
+	        return true;
+	    } else {
+	        // no camera on this device
+	        return false;
+	    }
 	}
 	
-	public void onVideoClick(View view){
-		Intent intent = new Intent();
-		intent.setAction("android.media.action.VIDEO_CAPTURE");
-		intent.addCategory("android.intent.category.DEFAULT");
-		File file = new File("/sdcard/0000000video.mp4");
-		Uri uri = Uri.fromFile(file);
-		intent.putExtra(MediaStore.EXTRA_OUTPUT, uri);
-		startActivityForResult(intent, 0);
+	//2. 得到一个摄像头
+	/** A safe way to get an instance of the Camera object. */
+	public static Camera getCameraInstance(){
+	    Camera c = null;
+	    try {
+	        c = Camera.open(); // attempt to get a Camera instance
+	    }
+	    catch (Exception e){
+	        // Camera is not available (in use or does not exist)
+	    }
+	    return c; // returns null if camera is unavailable
 	}
+	
+	private PictureCallback mPicture = new PictureCallback() {
+
+	    @Override
+	    public void onPictureTaken(byte[] data, Camera camera) {
+
+	        File pictureFile = new File("/sdcard/"+System.currentTimeMillis()+".jpg");
+
+	        try {
+	            FileOutputStream fos = new FileOutputStream(pictureFile);
+	            fos.write(data);
+	            fos.close();
+	        } catch (FileNotFoundException e) {
+	            Log.d(TAG, "File not found: " + e.getMessage());
+	        } catch (IOException e) {
+	            Log.d(TAG, "Error accessing file: " + e.getMessage());
+	        }
+	    }
+	};
 
 	@Override
-	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-		Toast.makeText(this, "录像完毕", 0).show();
+	protected void onDestroy() {
 		// TODO Auto-generated method stub
-		super.onActivityResult(requestCode, resultCode, data);
+		super.onDestroy();
+		if (mCamera != null) {
+			mCamera.release();
+			mCamera = null;
+		}
 	}
-	
-	
-	
-	
-
 
 }
